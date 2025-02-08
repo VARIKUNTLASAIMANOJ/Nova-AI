@@ -9,3 +9,4 @@ aiohttp
 deep-translator
 langdetect
 apscheduler
+gtts
