@@ -4,7 +4,6 @@ import os
 import datetime
 import time
 import base64
-import pyttsx3
 import fitz
 import speech_recognition as sr
 import requests
@@ -13,13 +12,13 @@ from deep_translator import GoogleTranslator
 from langdetect import detect
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-
+from gtts import gTTS
+import tempfile
+import pygame
 
 load_dotenv()
 GENAI_API_KEY = os.getenv("GENAI_API_KEY")
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
-
-tts_engine = pyttsx3.init()
 
 if GENAI_API_KEY:
     genai.configure(api_key=GENAI_API_KEY)
@@ -31,7 +30,7 @@ st.title("💬 Nova AI")
 
 with st.sidebar:
     st.subheader("📜 Chat History")
-
+    
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = {}
 
@@ -61,7 +60,6 @@ with st.sidebar:
         "Comedian 🤣",
         "Code Debugger 🧑‍💻"
     ])
-
 
 
 def extract_text_from_pdf(uploaded_file):
@@ -109,7 +107,6 @@ try:
         with st.chat_message(msg["role"]):
             st.markdown(f"{avatar} {msg['content']}")
 
-    # Voice-to-Text Chat Feature
     if st.button("🎤 Speak to AI"):
         recognizer = sr.Recognizer()
         with sr.Microphone() as source:
@@ -125,7 +122,7 @@ try:
 
     if user_input:
         persona_prompts = {
-            "Normal Mode 🤖": "",  # AI responds normally
+            "Normal Mode 🤖": "",
             "Teacher 👨‍🏫": "Explain concepts like a teacher to a student: ",
             "Friend 😊": "Respond as a friendly and casual chatbot: ",
             "Expert 🎓": "Provide detailed expert-level information: ",
@@ -150,7 +147,6 @@ try:
         response = model.generate_content({"parts": [{"text": user_input}]})
         bot_reply = response.text if response else "⚠️ No response from AI."
 
-        ## 🔥 **FIXED TRANSLATION ISSUE: Detect Language Before Translating**
         try:
             detected_lang = detect(bot_reply)
             if detected_lang != "en":
@@ -158,20 +154,24 @@ try:
         except Exception as e:
             st.warning(f"⚠️ Translation Skipped Due to Error: {e}")
 
-        smart_replies = ["Tell me more!", "Can you elaborate?", "That’s interesting!", "Explain in simpler terms."]
-        st.write("💡 Suggested Replies:")
-        for reply in smart_replies:
-            if st.button(reply):
-                user_input = reply
-
         bot_area.empty()
 
         with st.chat_message("assistant"):
             st.markdown(f"🤖 {bot_reply}")
 
         if st.button("🔊 Read Aloud"):
-            tts_engine.say(bot_reply)
-            tts_engine.runAndWait()
+            with tempfile.NamedTemporaryFile(delete=True, suffix=".mp3") as temp_audio:
+                tts = gTTS(text=bot_reply, lang="en")
+                tts.save(temp_audio.name)
+                pygame.init()
+                pygame.mixer.init()
+                pygame.mixer.music.load(temp_audio.name)
+                pygame.mixer.music.play()
+
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)  # Wait for playback to finish
+
+                pygame.mixer.quit()
 
         st.session_state.messages.append({"role": "assistant", "content": bot_reply})
         st.session_state.chat_history[chat_id] = st.session_state.messages
